@@ -1,10 +1,247 @@
-<!DOCTYPE html>
-<html>
+!DOCTYPE html>
+<html lang="id">
 <head>
-    <title>wiwaa.photobox</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WIWAA PHOTOBOX</title>
+    <style>
+        /* CSS untuk Tampilan Cantik & Responsif HP */
+        body { background-color: #fff0f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 0; }
+        h1 { color: #db2777; margin-top: 20px; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        /* Layar Pembayaran (Menutupi Seluruh Layar Awal) */
+        #paymentScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.98); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        #paymentScreen h2 { color: #db2777; margin-bottom: 10px; }
+        #paymentScreen img { width: 220px; border: 5px solid #db2777; border-radius: 15px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-pay { background-color: #db2777; color: white; padding: 12px 24px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 10px; font-size: 16px; transition: background 0.3s; }
+        .btn-pay:hover { background-color: #9d174f; }
+        #passcodeField { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        #passcodeField input { padding: 12px; border: 2px solid #db2777; border-radius: 10px; font-size: 16px; width: 200px; text-align: center; }
+
+        /* Area Booth Utama (Tersembunyi Awalnya) */
+        .booth-container { display: none; padding: 20px; max-width: 500px; margin: 0 auto; }
+        .booth { position: relative; width: 100%; padding-top: 150%; /* Aspect Ratio 2:3 */ background-color: black; border: 8px solid white; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden; margin-bottom: 20px; }
+        video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        #timer { position: absolute; top: 40%; left: 0; width: 100%; font-size: 80px; color: white; display: none; z-index: 10; text-shadow: 2px 2px 10px rgba(0,0,0,0.8); font-weight: bold; }
+
+        /* Tombol & Pilihan Frame */
+        .controls { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .frame-options { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .frame-options img { width: 60px; height: 90px; border: 3px solid transparent; cursor: pointer; border-radius: 8px; transition: border 0.3s; object-fit: cover; }
+        .frame-options img:hover, .frame-options img.active { border-color: #db2777; transform: scale(1.05); }
+        .btn-capture { background-color: #ff69b4; color: white; padding: 15px 30px; border-radius: 50px; border: none; font-weight: bold; cursor: pointer; font-size: 18px; box-shadow: 0 4px 10px rgba(255,105,180,0.3); }
+        .btn-capture:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-wa-custom { text-decoration: none; background-color: #25d366; color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; display: inline-block; font-size: 14px; margin-top: 10px; }
+
+        /* Hasil Foto & Barcode Download */
+        #resultScreen { display: none; margin-top: 20px; border-top: 2px solid #db2777; padding-top: 20px; }
+        #photoResult { width: 100%; max-width: 320px; border: 5px solid white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #downloadQr { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        #downloadQr canvas { position: static; width: 150px; height: 150px; border: 2px solid #db2777; padding: 5px; background: white; }
+    </style>
 </head>
 <body>
-    <h1>Halo! Ini Website Pertama Saya</h1>
-    <p>Sekarang tampilannya sudah tidak kosong lagi.</p>
+
+    <div id="paymentScreen">
+        <h2>💰 Buka Kunci Photobox 💰</h2>
+        <p>Scan QRIS untuk bayar Rp10.000 / Sesi</p>
+        <img src="qris.png" alt="Scan QRIS untuk Bayar">
+        
+        <a href="https://wa.me/628123456789?text=SAYA%20SUDAH%20BAYAR%20PHOTOBOTH" class="btn-pay" target="_blank">📲 Konfirmasi Bayar via WA</a>
+        
+        <div id="passcodeField">
+            <p>Masukkan Passcode dari WA:</p>
+            <input type="password" id="passcodeInput" placeholder="Contoh: WIWAA123">
+            <button class="btn-pay" onclick="checkPasscode()">Masuk & Mulai Foto</button>
+        </div>
+    </div>
+
+    <div class="booth-container" id="mainBooth">
+        <h1>📸 WIWAA PHOTOBOX 📸</h1>
+        
+        <div class="booth">
+            <div id="timer">3</div>
+            <video id="video" autoplay playsinline></video>
+            <canvas id="frameCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn-capture" id="captureBtn" onclick="mulaiTimer()">CEKREK!</button>
+            
+            <div class="frame-options">
+                <img src="frame1.png" alt="Tema 1" onclick="loadFrame('frame1.png', this)" class="active">
+                <img src="frame2.png" alt="Tema 2" onclick="loadFrame('frame2.png', this)">
+                <img src="frame3.png" alt="Tema 3" onclick="loadFrame('frame3.png', this)">
+            </div>
+            
+            <a href="https://wa.me/628123456789?text=SAYA%20MAU%20PESEN%20CUSTOM%20FRAME" class="btn-wa-custom" target="_blank">📲 Pesan Custom Frame</a>
+        </div>
+
+        <div id="resultScreen">
+            <h3>Hasil Foto Kamu:</h3>
+            <img id="photoResult" src="" alt="Hasil Foto">
+            <p>Klik kanan/tahan foto untuk simpan.</p>
+            
+            <div id="downloadQr">
+                <p>Scan untuk Download (Simulasi):</p>
+                <div id="qrcode"></div>
+            </div>
+            <button class="btn-pay" style="background:#ff69b4;" onclick="resetBooth()">Foto Lagi</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // Variabel Utama
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('frameCanvas');
+        const ctx = canvas.getContext('2d');
+        const timerEl = document.getElementById('timer');
+        const captureBtn = document.getElementById('captureBtn');
+        const resultScreen = document.getElementById('resultScreen');
+        const photoResult = document.getElementById('photoResult');
+        let currentStream = null;
+        let finalQr = null; // Untuk menampung object QRCode
+
+        // --- A. LOGIKA PEMBAYARAN & AKSES KAMERA ---
+        function checkPasscode() {
+            const input = document.getElementById('passcodeInput').value;
+            // GANTI 'WIWAA123' dengan kata sandi harian buatan kamu
+            if (input.toUpperCase() === 'WIWAA123') {
+                document.getElementById('paymentScreen').style.display = 'none';
+                document.getElementById('mainBooth').style.display = 'block';
+                aktifkanKamera();
+                loadFrame('frame1.png', document.querySelector('.frame-options img')); // Load frame default
+            } else {
+                alert("Passcode Salah! Silakan konfirmasi pembayaran via WA untuk mendapatkan passcode yang benar.");
+            }
+        }
+
+        function aktifkanKamera() {
+            // Meminta izin kamera. Ini HANYA JALAN jika website ONLINE (HTTPS)
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+                .then(stream => {
+                    currentStream = stream;
+                    video.srcObject = stream;
+                })
+                .catch(err => {
+                    console.error("Gagal akses kamera:", err);
+                    alert("Waduh! Website tidak bisa akses kamera. Pastikan kamu membuka link HTTPS dan mengizinkan kamera di browser HP/Laptop kamu.");
+                });
+        }
+
+        // --- B. LOGIKA FRAME & PENGHAPUS WARNA HIJAU ---
+        function loadFrame(frameName, element) {
+            // Tandai tombol frame yang aktif
+            document.querySelectorAll('.frame-options img').forEach(img => img.classList.remove('active'));
+            element.classList.add('active');
+
+            const img = new Image();
+            img.src = frameName;
+            img.onload = () => {
+                // Set ukuran canvas sesuai aspect ratio booth (2:3)
+                canvas.width = 320; 
+                canvas.height = 480; 
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Gambar frame desain kamu
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                // --- PROSES CHROMA KEY (Hapus Warna Hijau) ---
+                let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                let data = imageData.data;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i];     // Red
+                    let g = data[i+1];   // Green
+                    let b = data[i+2];   // Blue
+                    
+                    // Logika sederhana: Jika warna dominan Hijau, jadikan transparan
+                    // Sesuaikan angka ini (threshold) jika warna hijaunya kurang pas terhapus
+                    if (g > 150 && r < 130 && b < 130) {
+                        data[i+3] = 0; // Set Alpha (transparansi) ke 0
+                    }
+                }
+                // Tulis kembali data gambar yang sudah dilubangi ke canvas
+                ctx.putImageData(imageData, 0, 0);
+            };
+            img.onerror = () => {
+                alert(Gagal memuat frame '${frameName}'. Pastikan file gambar ada di folder dan namanya benar.);
+            };
+        }
+
+        // --- C. LOGIKA TIMER & AMBIL FOTO ---
+        function mulaiTimer() {
+            captureBtn.disabled = true;
+            let count = 3;
+            timerEl.innerText = count;
+            timerEl.style.display = 'block';
+
+            const countdown = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    timerEl.innerText = count;
+                } else {
+                    clearInterval(countdown);
+                    timerEl.style.display = 'none';
+                    ambilFoto();
+                }
+            }, 1000);
+        }
+
+        function ambilFoto() {
+            // Buat canvas sementara untuk menggabungkan kamera + frame lubang
+            const mergeCanvas = document.createElement('canvas');
+            mergeCanvas.width = canvas.width;
+            mergeCanvas.height = canvas.height;
+            const mergeCtx = mergeCanvas.getContext('2d');
+
+            // 1. Gambar Video Kamera (sebagai background)
+            mergeCtx.drawImage(video, 0, 0, mergeCanvas.width, mergeCanvas.height);
+            
+            // 2. Gambar Frame Lubang (yang sudah transparan) di atasnya
+            mergeCtx.drawImage(canvas, 0, 0, mergeCanvas.width, mergeCanvas.height);
+
+            // 3. Ubah hasil gabungan menjadi gambar Base64
+            const dataUrl = mergeCanvas.toDataURL('image/png');
+            
+            // Tampilkan hasil foto
+            photoResult.src = dataUrl;
+            resultScreen.style.display = 'block';
+            captureBtn.disabled = false;
+            
+            // Matikan kamera sementara agar hemat baterai
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            // --- BUAT BARCODE UNTUK SCAN FOTO (SIMULASI) ---
+            // Masalah Teknis: Kita tidak bisa buat barcode download beneran tanpa server database.
+            // Barcode ini hanya simulasi mengarah ke website utama kembali.
+            // Di dunia nyata, ini butuh upload foto ke cloud (misal Cloudinary) lalu link-nya di-barcode.
+            
+            const dummyDownloadUrl = window.location.href; // Simulasi: barcode balik ke web utama
+            
+            if (finalQr) {
+                finalQr.clear(); // Hapus barcode lama
+                finalQr.makeCode(dummyDownloadUrl); // Buat barcode baru
+            } else {
+                finalQr = new QRCode(document.getElementById("qrcode"), {
+                    text: dummyDownloadUrl,
+                    width: 150,
+                    height: 150,
+                    colorDark : "#db2777",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
+        }
+
+        function resetBooth() {
+            resultScreen.style.display = 'none';
+            aktifkanKamera(); // Nyalakan kamera lagi
+        }
+    </script>
 </body>
 </html>
